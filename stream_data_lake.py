@@ -1,31 +1,4 @@
 # Databricks notebook source
-# spark.conf.set(
-#     "fs.azure.account.key.<storage-account>.dfs.core.windows.net",
-#     dbutils.secrets.get(scope="<scope>", key="<storage-account-access-key>"))
-
-# spark.read.load("abfss://<container-name>@<storage-account-name>.dfs.core.windows.net/<path-to-data>")
-
-# dbutils.fs.ls("abfss://<container-name>@<storage-account-name>.dfs.core.windows.net/<path-to-data>")
-
-# COMMAND ----------
-
-storageAccountName = "nobre de la cuenta"
-storageAccountAccessKey = "key de la cuenta"
-blobContainerName = "bronze"
-mountPoint = "/mnt/bronze/"
-if not any(mount.mountPoint == mountPoint for mount in dbutils.fs.mounts()):
-  try:
-    dbutils.fs.mount(
-      source = "wasbs://{}@{}.blob.core.windows.net".format(blobContainerName, storageAccountName),
-      mount_point = mountPoint,
-      extra_configs = {'fs.azure.account.key.' + storageAccountName + '.blob.core.windows.net': storageAccountAccessKey}
-    )
-    print("mount succeeded!")
-  except Exception as e:
-    print("mount exception", e)
-
-# COMMAND ----------
-
 # Definir una función personalizada que llame al modelo en Hugging Face
 def custom_model_inference(price):
     url = "https://api-inference.huggingface.co/models/tu-modelo"
@@ -52,16 +25,7 @@ display(streamingCountsDF)
 
 # COMMAND ----------
 
-dbutils.fs.mounts()
-
-# COMMAND ----------
-
-dbutils.fs.unmount('/mnt/bronze/')
-
-# COMMAND ----------
-
 path = "reddit/stream_delta_table/"
-#file_path = f"abfss://bronze@sadatalakeproyectommds.dfs.core.windows.net/{path}"
 file_path = "/mnt/bronze/"+path
 df_btc_price = spark.read.format("delta").load(file_path)
 
@@ -72,10 +36,6 @@ df_btc_price.show()
 # COMMAND ----------
 
 dbutils.secrets.listScopes()
-
-# COMMAND ----------
-
-#dbutils.secrets.list('secrets_eafit_mmds')
 
 # COMMAND ----------
 
