@@ -17,6 +17,24 @@ display(df)
 
 # COMMAND ----------
 
+df = df.withColumnRenamed("Post Date", "Post_Date") \
+                                         .withColumnRenamed("User Posting", "User_Posting")
+
+
+# COMMAND ----------
+
+from pyspark.sql.functions import regexp_replace, trim
+
+# Remove special characters, double spaces, emojis, and newlines
+df_cleaned = df.withColumn("User_Posting", regexp_replace("User_Posting", "[^\\x00-\\x7F]+", "")) \
+               .withColumn("User_Posting", regexp_replace("User_Posting", "\\s+", " ")) \
+               .withColumn("User_Posting", regexp_replace("User_Posting", "[\\n\\r]", " ")) \
+               .withColumn("User_Posting", trim("User_Posting"))
+
+display(df_cleaned)
+
+# COMMAND ----------
+
 # DBTITLE 1,contar el numero de token por post
 import tiktoken
 from pyspark.sql.functions import udf
@@ -29,7 +47,7 @@ def count_tokens(text):
 
 count_tokens_udf = udf(count_tokens, IntegerType())
 
-df_with_token_count = df.withColumn("token_count_tiktoken", count_tokens_udf(df["User Posting"]))
+df_with_token_count = df_cleaned.withColumn("token_count_tiktoken", count_tokens_udf(df_cleaned["User_Posting"]))
 
 # COMMAND ----------
 
@@ -59,7 +77,7 @@ query_model_udf = udf(query_model, StringType())
 # Apply the UDF conditionally based on token count
 df_with_model_output = df_with_token_count.withColumn(
     "prediction",
-    when(df_with_token_count["token_count_tiktoken"] > 10, query_model_udf(df_with_token_count["User Posting"]))
+    when(df_with_token_count["token_count_tiktoken"] > 10, query_model_udf(df_with_token_count["User_Posting"]))
 )
 
 # Select relevant columns
@@ -67,19 +85,13 @@ df_with_predictions = df_with_model_output.select(
     "Subreddit",
     "Thread",
     "Author",
-    "Post Date",
-    "User Posting",
+    "Post_Date",
+    "User_Posting",
     "token_count_tiktoken",
     "prediction"
 )
-display(df_with_predictions)
-
-# COMMAND ----------
-
-df_with_predictions = df_with_predictions.withColumnRenamed("Post Date", "Post_Date") \
-                                         .withColumnRenamed("User Posting", "User_Posting")
-
 df_with_predictions.write.format("delta").mode("overwrite").save("/mnt/gold/reddit/post_predictions_bert")
+display(df_with_predictions)
 
 # COMMAND ----------
 
