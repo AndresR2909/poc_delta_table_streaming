@@ -32,7 +32,7 @@ count_tokens_udf = udf(count_tokens, IntegerType())
 from pyspark.sql.functions import size, split, count, sum, avg, to_date
 
 #df_with_words_count = df.withColumn("words_count", size(split(df["User Posting"], " ")))
-df_with_token_count_tiktoken = df.withColumn("token_count_tiktoken", count_tokens_udf(df["User Posting"]))
+df_with_token_count = df.withColumn("token_count_tiktoken", count_tokens_udf(df["User Posting"]))
 df_with_date = df_with_token_count.withColumn("Post Date", to_date(df_with_token_count["Post Date"]))
 df_grouped = df_with_date.groupBy("Post Date", "Subreddit").agg(
     count("User Posting").alias("post_count"),
@@ -87,9 +87,9 @@ schema = StructType([
 query_model_udf = udf(query_model, schema)
 
 # Apply the UDF conditionally based on token count
-df_with_model_output = df_with_token_count_tiktoken.withColumn(
+df_with_model_output = df_with_token_count.withColumn(
     "model_output",
-    when(df_with_token_count_tiktoken["token_count_tiktoken"] > 10, query_model_udf(df_with_token_count_tiktoken["User Posting"]))
+    when(df_with_token_count["token_count_tiktoken"] > 10, query_model_udf(df_with_token_count["User Posting"]))
 )
 
 # Extract prediction and prediction_prob into separate columns
@@ -131,7 +131,3 @@ df_grouped_by_month = df_with_month.groupBy("Month", "Subreddit").agg(
     count(when(col("prediction") == "1", True)).alias("prediction_1")
 )
 display(df_grouped_by_month)
-
-# COMMAND ----------
-
-
