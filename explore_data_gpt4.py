@@ -43,72 +43,109 @@ def count_tokens(text):
     return len(encoding.encode(text))
 
 count_tokens_udf = udf(count_tokens, IntegerType())
-
-# COMMAND ----------
-
-# DBTITLE 1,contar el numero de post y tokens por posts agrupados por dia
-from pyspark.sql.functions import size, split, count, sum, avg, to_date
-
-#df_with_words_count = df.withColumn("words_count", size(split(df["User Posting"], " ")))
 df_with_token_count = df_cleaned.withColumn("token_count_tiktoken", count_tokens_udf(df_cleaned["User_Posting"]))
-df_with_date = df_with_token_count.withColumn("Post_Date", to_date(df_with_token_count["Post_Date"]))
-df_grouped = df_with_date.groupBy("Post_Date", "Subreddit").agg(
-    count("User_Posting").alias("post_count"),
-    sum("token_count_tiktoken").alias("total_token_count"),
-    avg("token_count_tiktoken").alias("avg_token_count")
-)
-
-display(df_grouped)
 
 # COMMAND ----------
 
-# DBTITLE 1,contar el numero de post y tokens por posts agrupados por mes
-from pyspark.sql.functions import date_format
+# DBTITLE 1,modelo chatgp4
+from src.open_ia_chat import OpenAIChatModel
+from langchain_core.prompts import ChatPromptTemplate
 
-df_with_month = df_with_date.withColumn("Month", date_format(df_with_date["Post_Date"], "yyyy-MM"))
-df_grouped_by_month = df_with_month.groupBy("Month", "Subreddit").agg(
-    count("User_Posting").alias("post_count"),
-    sum("token_count_tiktoken").alias("total_token_count"),
-    avg("token_count_tiktoken").alias("avg_token_count")
-)
+open_ia_deployments = [{"azure":False,"deployment":"gpt-4o-mini"},{"azure":False,"deployment":"gpt-4o-2024-08-06"}]
 
-display(df_grouped_by_month)
+open_ia_model = OpenAIChatModel(**open_ia_deployments[1])
+
+# COMMAND ----------
+
+open_ia_model.chat_model_client.invoke("suma 2 mas 2").content
+
+# COMMAND ----------
+
+# Define the system message as a simple string without extra formatting
+system_msg = """Clasifica el siguiente post con "1" si identificas ideación o comportamiento suicida, y con "0" si no. Además, proporciona la probabilidad de la clase seleccionada sea la correcta. Responde estrictamente en el siguiente formato JSON: {{ "clase": <0 o 1>, "probabilidad": <número entre 0 y 1> }}""".strip()
+
+# Create the prompt template with the corrected structure
+zero_shot_prompt = ChatPromptTemplate.from_messages([
+    ("system", system_msg),
+    ("human", "{text}")
+])
+
+
+# COMMAND ----------
+
+#system_msg = """
+#Clasifica el siguiente post con "1" si identificas ideación o comportamiento suicida, y con "0" si no. Solo responde con "0" o "1" sin agregar ningún comentario #adicional.
+#Post:""".strip()
+#zero_shot_prompt = ChatPromptTemplate.from_messages([("system", system_msg,),("human", "{text}"),])
+
+# COMMAND ----------
+
+llm = open_ia_model.chat_model_client
+chain = zero_shot_prompt | llm
+
+# COMMAND ----------
+
+
+from src.open_ia_chat import OpenAIChatModel
+from langchain_core.prompts import ChatPromptTemplate
+import logging
+
+open_ia_deployments = [{"azure":False,"deployment":"gpt-4o-mini"},{"azure":False,"deployment":"gpt-4o-2024-08-06"}]
+
+def generate_clasification(text):
+    open_ia_model = OpenAIChatModel(**open_ia_deployments[1])
+    
+    system_msg = """Clasifica el siguiente post con "1" si identificas ideación o comportamiento suicida, y con "0" si no. Además, proporciona la probabilidad de la clase seleccionada sea la correcta. Responde estrictamente en el siguiente formato JSON: {{ "clase": <0 o 1>, "probabilidad": <número entre 0 y 1> }}""".strip()
+
+    zero_shot_prompt = ChatPromptTemplate.from_messages([
+        ("system", system_msg),
+        ("human", "{text}")
+    ])
+    llm = open_ia_model.chat_model_client
+    chain = zero_shot_prompt | llm
+    try:
+        response = chain.invoke(
+            {
+                "text": text,
+            }
+        )
+        return json.loads(response.content)
+    except Exception as e:
+        logging.info(e)
+        return { "clase": -1, "probabilidad": 0 }
+
+# COMMAND ----------
+
+text = "Si usted es de los que comenta todo en el hp cine, o quiere parecer inteligentísimo diciendo lo que va a pasar en la película... le tengo una sugerencia:"
+response = generate_clasification(text)
+response
 
 # COMMAND ----------
 
 # DBTITLE 1,aplicar modelo a post (filtrar por numero de tokens >=10)
-from pyspark.sql.functions import when, col
+from pyspark.sql.functions import when, col, udf
 from pyspark.sql.types import StructType, StructField, StringType, FloatType
-import requests
+import json
 
-
-# Define a UDF to query the model endpoint and extract prediction and prediction_prob
+# Define a UDF to query the model endpoint and extract prediction
 def query_model(text):
-    API_URL = "https://si5rdemrbopl05yv.us-east-1.aws.endpoints.huggingface.cloud"
-    headers = {
-        "Accept": "application/json",
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "inputs": text,
-        "parameters": {}
-    }
-    response = requests.post(API_URL, headers=headers, json=payload)
-    result = response.json()[0]
-    return (result['prediction'], result['prediction_prob'])
+    return generate_clasification(text)
 
-schema = StructType([
-    StructField("prediction", StringType(), True),
-    StructField("prediction_prob", FloatType(), True)
-])
+query_model_udf = udf(query_model, StructType([
+    StructField("clase", StringType(), True),
+    StructField("probabilidad", FloatType(), True)
+]))
 
-query_model_udf = udf(query_model, schema)
+
 
 # Apply the UDF conditionally based on token count
 df_with_model_output = df_with_token_count.withColumn(
     "model_output",
     when(df_with_token_count["token_count_tiktoken"] > 10, query_model_udf(df_with_token_count["User_Posting"]))
 )
+
+#evitar repetir llamado api
+df_with_model_output.cache()
 
 # Extract prediction and prediction_prob into separate columns
 df_with_predictions = df_with_model_output.select(
@@ -118,16 +155,15 @@ df_with_predictions = df_with_model_output.select(
     "Post_Date",
     "User_Posting",
     "token_count_tiktoken",
-    col("model_output.prediction").alias("prediction"),
-    col("model_output.prediction_prob").alias("prediction_prob")
+    col("model_output.clase").alias("clasification"),
+    col("model_output.probabilidad").alias("prediction_prob")
 )
-df_with_predictions.write.format("delta").mode("overwrite").save("/mnt/gold/reddit/post_predictions")
+df_with_predictions.write.format("delta").mode("overwrite").save("/mnt/gold/reddit/post_predictions_gpt4o")
 display(df_with_predictions)
 
 # COMMAND ----------
 
-# DBTITLE 1,cargar df desde tabla con predicciones en gold
-df_with_predictions = spark.read.format("delta").load("/mnt/gold/reddit/post_predictions")
+df_with_predictions = spark.read.format("delta").load("/mnt/gold/reddit/post_predictions_gpt4o")
 display(df_with_predictions)
 
 # COMMAND ----------
@@ -139,6 +175,6 @@ df_grouped_by_month = df_with_month.groupBy("Month", "Subreddit").agg(
     count("User_Posting").alias("post_count"),
     sum("token_count_tiktoken").alias("total_token_count"),
     avg("token_count_tiktoken").alias("avg_token_count"),
-    count(when(col("prediction") == "1", True)).alias("prediction_1")
+    count(when(col("clasification") == "1", True)).alias("prediction_1")
 )
 display(df_grouped_by_month)
