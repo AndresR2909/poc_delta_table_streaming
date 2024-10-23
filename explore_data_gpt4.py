@@ -61,18 +61,6 @@ open_ia_model.chat_model_client.invoke("suma 2 mas 2").content
 
 # COMMAND ----------
 
-# Define the system message as a simple string without extra formatting
-system_msg = """Clasifica el siguiente post con "1" si identificas ideación o comportamiento suicida, y con "0" si no. Además, proporciona la probabilidad de la clase seleccionada sea la correcta. Responde estrictamente en el siguiente formato JSON: {{ "clase": <0 o 1>, "probabilidad": <número entre 0 y 1> }}""".strip()
-
-# Create the prompt template with the corrected structure
-zero_shot_prompt = ChatPromptTemplate.from_messages([
-    ("system", system_msg),
-    ("human", "{text}")
-])
-
-
-# COMMAND ----------
-
 #system_msg = """
 #Clasifica el siguiente post con "1" si identificas ideación o comportamiento suicida, y con "0" si no. Solo responde con "0" o "1" sin agregar ningún comentario #adicional.
 #Post:""".strip()
@@ -80,22 +68,31 @@ zero_shot_prompt = ChatPromptTemplate.from_messages([
 
 # COMMAND ----------
 
-llm = open_ia_model.chat_model_client
-chain = zero_shot_prompt | llm
-
-# COMMAND ----------
-
 
 from src.open_ia_chat import OpenAIChatModel
 from langchain_core.prompts import ChatPromptTemplate
 import logging
+import json
 
 open_ia_deployments = [{"azure":False,"deployment":"gpt-4o-mini"},{"azure":False,"deployment":"gpt-4o-2024-08-06"}]
 
 def generate_clasification(text):
     open_ia_model = OpenAIChatModel(**open_ia_deployments[1])
     
-    system_msg = """Clasifica el siguiente post con "1" si identificas ideación o comportamiento suicida, y con "0" si no. Además, proporciona la probabilidad de la clase seleccionada sea la correcta. Responde estrictamente en el siguiente formato JSON: {{ "clase": <0 o 1>, "probabilidad": <número entre 0 y 1> }}""".strip()
+    # system_msg = """Clasifica el siguiente texto con "1" si identificas ideación o comportamiento suicida, y con #"0" si no. Además, proporciona la probabilidad de la clase seleccionada sea la correcta. Responde estrictamente #en el siguiente formato JSON: {{ "clase": <0 o 1>, "probabilidad": <número entre 0 y 1> }}""".strip()
+
+    system_msg = """
+    Analiza el siguiente texto y clasifícalo de la siguiente manera:
+    - Asigna "1" si identificas ideación o comportamiento suicida
+    - Asigna "0" si no identificas contenido relacionado con suicidio
+    Además, proporciona una probabilidad entre 0 y 1 que refleje tu nivel de confianza en la clasificación.
+    Responde ÚNICAMENTE en el siguiente formato JSON:
+    {{
+        "clase": <0 o 1>,
+        "probabilidad": <número entre 0 y 1>
+    }}
+    Texto a analizar:
+    """.strip()
 
     zero_shot_prompt = ChatPromptTemplate.from_messages([
         ("system", system_msg),
@@ -112,6 +109,7 @@ def generate_clasification(text):
         return json.loads(response.content)
     except Exception as e:
         logging.info(e)
+        print(response.content)
         return { "clase": -1, "probabilidad": 0 }
 
 # COMMAND ----------
