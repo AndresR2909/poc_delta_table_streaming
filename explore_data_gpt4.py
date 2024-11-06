@@ -166,7 +166,7 @@ display(df_with_predictions)
 
 # COMMAND ----------
 
-from pyspark.sql.functions import date_format, count, sum, avg
+from pyspark.sql.functions import date_format, count, sum, avg, when, col
 
 df_with_month = df_with_predictions.withColumn("Month", date_format(df_with_predictions["Post_Date"], "yyyy-MM"))
 df_grouped_by_month = df_with_month.groupBy("Month", "Subreddit").agg(

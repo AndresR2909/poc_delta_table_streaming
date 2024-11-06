@@ -14,6 +14,12 @@ df.printSchema()
 
 # COMMAND ----------
 
+# DBTITLE 1,eliminar registros repetidos
+df = df.dropDuplicates(["Post ID", "Subreddit", "User Posting", "Author", "Post Date"])
+display(df)
+
+# COMMAND ----------
+
 df = df.withColumnRenamed("Post Date", "Post_Date") \
                         .withColumnRenamed("User Posting", "User_Posting")
 
@@ -44,6 +50,31 @@ def count_tokens(text):
 
 count_tokens_udf = udf(count_tokens, IntegerType())
 df_with_token_count = df_cleaned.withColumn("token_count_tiktoken", count_tokens_udf(df_cleaned["User_Posting"]))
+
+# COMMAND ----------
+
+from pyspark.sql.functions import year, month
+
+df_with_token_count_grouped = df_with_token_count.groupBy(
+    year("Post_Date").alias("year"),
+    month("Post_Date").alias("month")
+).count()
+
+display(df_with_token_count_grouped)
+
+# COMMAND ----------
+
+from pyspark.sql.functions import year, month
+
+df_with_token_count_grouped = df_with_token_count.groupBy(
+    year("Post_Date").alias("year"),
+).count()
+
+display(df_with_token_count_grouped)
+
+# COMMAND ----------
+
+df_with_token_count_grouped.agg({"count": "sum"}).alias("sum_count").show()
 
 # COMMAND ----------
 
