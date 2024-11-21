@@ -2,8 +2,11 @@
 
 Este repositorio contiene notebooks databricks (.py) y notebooks para el análisis y procesamiento de datos de streaming de post de reddit usando Delta Lake.
 
-## Arquiectura de la solucion
+## Arquiectura de la solución
 
+La Azure Function se utiliza para consumir la API de Reddit y evaluar nuevos posts, simulando un flujo de datos. Event Hubs recibe los eventos y, a través de un job de Stream Analytics, los JSON se almacenan en una tabla Delta en el Data Lake. Con Databricks se evalúa cada ventana de datos de 1000 posts usando una UDF que evalúa cada post con el endpoint del modelo. Los resultados y la data agregada se almacenan en una tabla Delta de la zona Silver. Posteriormente, se evalúa y consolida la tabla para obtener resultados importantes que se visualizan en un tablero de Power BI.
+
+![Arquitectura](propuesta_proyecto_integrador.png)
 
 ## Notebooks
 
