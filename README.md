@@ -2,6 +2,9 @@
 
 Este repositorio contiene notebooks databricks (.py) y notebooks para el análisis y procesamiento de datos de streaming de post de reddit usando Delta Lake.
 
+## Arquiectura de la solucion
+
+
 ## Notebooks
 
 - [EDA_trainig_data.ipynb](https://github.com/AndresR2909/poc_delta_table_streaming/blob/main/EDA_trainig_data.ipynb): Este notebook demuestra varios pasos de exploración y preprocesamiento de datos, incluyendo la tokenización, análisis de frecuencia y técnicas de visualización usando bibliotecas de Python como NLTK, Pandas, Matplotlib y Seaborn.
