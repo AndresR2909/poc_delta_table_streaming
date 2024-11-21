@@ -10,10 +10,12 @@ display(df)
 
 # COMMAND ----------
 
+# DBTITLE 1,Displaying the Schema of a DataFrame Using Python
 df.printSchema()
 
 # COMMAND ----------
 
+# DBTITLE 1,filter data to analize
 from pyspark.sql.functions import col
 
 df_filtered = df.filter(col("EventProcessedUtcTime") >= "2024-11-06")
@@ -21,6 +23,7 @@ display(df_filtered)
 
 # COMMAND ----------
 
+# DBTITLE 1,Group Data by Year and Month
 from pyspark.sql.functions import year, month
 
 df_grouped = df_filtered.groupBy(
@@ -32,15 +35,18 @@ display(df_grouped)
 
 # COMMAND ----------
 
+# DBTITLE 1,total post
 df_grouped.agg({"count": "sum"}).alias("sum_count").show()
 
 # COMMAND ----------
 
+# DBTITLE 1,Drop duplicated post
 df_filtered_duplicates = df_filtered.dropDuplicates(["Post ID", "Subreddit", "User Posting", "Author", "Post Date"])
 display(df_filtered_duplicates)
 
 # COMMAND ----------
 
+# DBTITLE 1,show post by year an month witout duplicated post
 from pyspark.sql.functions import year, month
 
 df_grouped = df_filtered_duplicates.groupBy(
@@ -52,16 +58,18 @@ display(df_grouped)
 
 # COMMAND ----------
 
+# DBTITLE 1,total post without duplicated data
 df_grouped.agg({"count": "sum"}).alias("sum_count").show()
 
 # COMMAND ----------
 
-# DBTITLE 1,leer tabla de gold con predicciones
+# DBTITLE 1,load data from gold with predictions
 df_with_predictions = spark.read.format("delta").load("/mnt/gold/reddit/post_predictions_gpt4o_v2")
 display(df_with_predictions)
 
 # COMMAND ----------
 
+# DBTITLE 1,create table
 spark.sql("CREATE SCHEMA IF NOT EXISTS reddit")
 df_with_predictions.write.format("delta").mode("overwrite").saveAsTable("reddit.post_predictions_gpt4o_v2")
 
@@ -72,11 +80,13 @@ display(df_with_predictions_old)
 
 # COMMAND ----------
 
+# DBTITLE 1,create table
 spark.sql("DROP TABLE IF EXISTS reddit.post_predictions_gpt4o")
 df_with_predictions_old.write.format("delta").mode("overwrite").saveAsTable("reddit.post_predictions_gpt4o")
 
 # COMMAND ----------
 
+# DBTITLE 1,show predictions equals to 1 (suicide intention) grop by mont and subreddit
 from pyspark.sql.functions import date_format, count, sum, avg, when, col
 
 df_with_month = df_with_predictions.withColumn("Month", date_format(df_with_predictions["Post_Date"], "yyyy-MM"))

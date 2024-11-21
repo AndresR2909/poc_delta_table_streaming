@@ -74,10 +74,8 @@ query_model_udf = udf(query_model, StringType())
 df_with_model_output = df_with_token_count.withColumn(
     "prediction",
     when(df_with_token_count["token_count_tiktoken"] > 10, query_model_udf(df_with_token_count["User_Posting"]))
-)
+).cache() #evitar repetir llamado api
 
-#evitar repetir llamado api
-df_with_model_output.cache()
 
 # Select relevant columns
 df_with_predictions = df_with_model_output.select(
@@ -99,7 +97,7 @@ display(df_with_predictions)
 
 # COMMAND ----------
 
-from pyspark.sql.functions import date_format, count, sum, avg
+from pyspark.sql.functions import date_format, count, sum, avg, when, col
 
 df_with_month = df_with_predictions.withColumn("Month", date_format(df_with_predictions["Post_Date"], "yyyy-MM"))
 df_grouped_by_month = df_with_month.groupBy("Month", "Subreddit").agg(

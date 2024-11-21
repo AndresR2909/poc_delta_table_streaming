@@ -78,10 +78,7 @@ query_model_udf = udf(query_model, StringType())
 df_with_model_output = df_with_token_count.withColumn(
     "prediction",
     when(df_with_token_count["token_count_tiktoken"] > 10, query_model_udf(df_with_token_count["User_Posting"]))
-)
-
-#evitar repetir llamado api
-df_with_model_output.cache()
+).cache()
 
 # Select relevant columns
 df_with_predictions = df_with_model_output.select(

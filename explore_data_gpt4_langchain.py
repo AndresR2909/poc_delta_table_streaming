@@ -182,10 +182,7 @@ df_with_model_output = df_with_token_count.withColumn(
         df_with_token_count["token_count_tiktoken"] > 10, 
         query_model_udf(df_with_token_count["User_Posting"])
     )
-)
-
-# Avoid repeating API calls
-df_with_model_output.cache()
+).cache()
 
 # Extract prediction and prediction_prob into separate columns
 df_with_predictions = df_with_model_output.select(
